@@ -17,7 +17,8 @@ Features:
 
 ## Roadmap
 
-  - Run without cloning repository (curl and execute)
+  - Run without cloning repository (curl and run)
   - Buildkite setup (pipeline.yml, webhook, status badge)
+  - Ask, show, execute
   - Docker setup (Dockerfile, docker-compose.yml)
   - Additional language specific features (optional)?
