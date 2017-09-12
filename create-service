@@ -67,7 +67,9 @@ scaffold:git:github () {
 
     if [[ "$response" == "201" ]]; then
       echo " - Github project created (https://github.com/${githubOrganization:?}/${service}/)"
+
       git remote add origin git@github.com:${githubOrganization}/${service}.git
+      echo " - Added remote 'origin' to git repository (git@github.com:${githubOrganization}/${service}.git)"
     else
       echo " - Failed to create Github project (HTTP $response)"
       exit 1
