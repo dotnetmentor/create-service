@@ -1,117 +1,161 @@
 #!/usr/bin/env bash
 
-scaffold:init () {
-  export service="$1"
-  export serviceDir="$2"
+# ---------------------------------------------------
+# create-service internals
+# ---------------------------------------------------
 
-  if [[ -d ${serviceDir} ]]; then
-    echo "${service} already exists at $serviceDir"
-    exit 1
-  fi
+alias log_success="log green [cs] "
+alias log_info="log blue [cs] "
+alias log_warn="log yellow [cs] "
+alias log_error="log red [cs] "
 
-  mkdir -p "$serviceDir"
-  cd "$serviceDir" || exit
-}
+shopt -s expand_aliases
 
-scaffold:readme () {
-  [[ -f README.md ]] || cat <<EOF > README.md
-# ${service}
-EOF
-  echo ' - Created a README.md'
-}
-
-scaffold:directories () {
-  [[ -d ./src ]] || mkdir "./src"
-  [[ -d ./test ]] || mkdir "./test"
-  echo ' - Created default directories'
-}
-
-scaffold:dotfiles () {
-  [[ -f .gitignore ]] || touch .gitignore
-  [[ -f .editorconfig ]] || touch .editorconfig
-  echo ' - Created default dotfiles'
-}
-
-scaffold:taskrunner () {
-  [[ -f ./koshu.sh ]] || curl -s https://raw.githubusercontent.com/kristofferahl/koshu-shell/master/src/koshu.sh > ./koshu.sh
-  chmod +x ./koshu.sh
-  ./koshu.sh init > /dev/null
-  echo ' - Added koshu and default koshufile'
-}
-
-scaffold:git:local () {
-  git init > /dev/null
-  git add .
-  git commit -am "Created service $service" > /dev/null
-  echo ' - Initialized local git repository'
-}
-
-scaffold:git:github () {
-  ask_for useGithub 'Setup Github project' 'yes'
-
-  if [[ "$useGithub" != "yes" ]]; then
-    echo 'Skipping Github setup...'
-  else
-    ask_for githubOrganization 'Github organization'
-    ask_for githubToken 'Github API token'
-
-    response=$(curl https://api.github.com/orgs/${githubOrganization}/repos \
-      -H "Authorization: token ${githubToken}" \
-      -o /dev/null \
-      --write-out "%{http_code}\n" \
-      --silent \
-      -d "{
-            \"name\": \"${service}\",
-            \"private\": true
-          }")
-
-    if [[ "$response" == "201" ]]; then
-      echo " - Github project created (https://github.com/${githubOrganization:?}/${service}/)"
-
-      git remote add origin git@github.com:${githubOrganization}/${service}.git
-      echo " - Added remote 'origin' to git repository (git@github.com:${githubOrganization}/${service}.git)"
-    else
-      echo " - Failed to create Github project (HTTP $response)"
-      exit 1
-    fi
-  fi
-}
-
-scaffold:git () {
-  scaffold:git:local
-  scaffold:git:github
-}
+# shellcheck disable=SC2034
+declare -r cs_color_default=''
+# shellcheck disable=SC2034
+declare -r cs_color_blue="\033[1;94m"
+# shellcheck disable=SC2034
+declare -r cs_color_green="\033[1;92m"
+# shellcheck disable=SC2034
+declare -r cs_color_red="\033[0;91m"
+# shellcheck disable=SC2034
+declare -r cs_color_yellow="\033[0;93m"
+# shellcheck disable=SC2034
+declare -r cs_color_reset="\033[0m"
 
 ask_for () {
   local var="$1"
   local prompt="$2"
   local default="$3"
 
-  echo
   echo -n "${prompt} (${default}) : "
   read answer
   if [[ -z $answer ]]; then
-    printf -v "${var}" '%s' "${default}"
+    set_var "${var}" "${default}"
   else
-    printf -v "${var}" '%s' "${answer}"
+    set_var "${var}" "${answer}"
   fi
 
 }
 
+set_var () {
+  local name="$1"
+  local value="$2"
+  printf -v "${name}" '%s' "${value}"
+}
+
+log () {
+  local log_color="cs_color_${1}"
+  echo -e "${cs_color_reset}${!log_color}${*:2}${cs_color_reset}"
+}
+
+
+# ---------------------------------------------------
+# Generator functions. Modify as needded.
+# ---------------------------------------------------
+
+scaffold:init () {
+  set_var 'service_name' "$1"
+  ask_for 'service_dir' "Root directory" "${PWD}/${service_name:?}/"
+
+  if [[ -d ${service_dir:?} ]]; then
+    log_warn "${service_name:?} already exists at ${service_dir:?}"
+  fi
+
+  mkdir -p "${service_dir:?}"
+  cd "${service_dir:?}" || exit
+
+  export CS_SERVICE_NAME="${service_name}"
+  export CS_SERVICE_DIR="${service_dir}"
+}
+
+scaffold:readme () {
+  if [[ ! -f README.md ]]; then
+    cat <<EOF > README.md
+# ${CS_SERVICE_NAME:?}
+EOF
+    log_success ' - Created a README.md'
+  fi
+}
+
+scaffold:directories () {
+  [[ -d ./src ]] || mkdir "./src"
+  [[ -d ./test ]] || mkdir "./test"
+  log_success ' - Created directories'
+}
+
+scaffold:dotfiles () {
+  [[ -f .gitignore ]] || touch .gitignore
+  [[ -f .editorconfig ]] || touch .editorconfig
+  log_success ' - Created dotfiles'
+}
+
+scaffold:taskrunner () {
+  if [[ ! -f ./koshu.sh ]]; then
+    curl -s https://raw.githubusercontent.com/kristofferahl/koshu-shell/master/src/koshu.sh > ./koshu.sh
+    chmod +x ./koshu.sh
+    ./koshu.sh init > /dev/null
+    log_success ' - Added koshu and koshufile'
+  fi
+}
+
+scaffold:git:local () {
+  if [[ ! -d .git ]]; then
+    git init > /dev/null
+    git add .
+    git commit -am "Created service ${CS_SERVICE_NAME:?}" > /dev/null
+    log_success ' - Initialized local git repository'
+  fi
+}
+
+scaffold:git:github () {
+  ask_for useGithub 'Setup Github project' 'yes'
+
+  if [[ "${useGithub:?}" != 'yes' ]]; then
+    log_info 'Skipping Github setup...'
+  else
+    ask_for githubOrganization 'Github organization'
+    ask_for githubToken 'Github API token'
+
+    local response
+    response=$(curl https://api.github.com/orgs/${githubOrganization:?}/repos \
+      -H "Authorization: token ${githubToken:?}" \
+      -o /dev/null \
+      --write-out "%{http_code}\n" \
+      --silent \
+      -d "{
+            \"name\": \"${CS_SERVICE_NAME:?}\",
+            \"private\": true
+          }")
+
+    if [[ "$response" == "201" ]]; then
+      log_success " - Github project created (https://github.com/${githubOrganization:?}/${CS_SERVICE_NAME:?}/)"
+
+      git remote add origin git@github.com:${githubOrganization:?}/${CS_SERVICE_NAME:?}.git
+      log_success " - Added remote 'origin' to git repository (git@github.com:${githubOrganization:?}/${CS_SERVICE_NAME:?}.git)"
+
+      export CS_GITHUB_ORG="${githubOrganization:?}"
+    else
+      log_error " - Failed to create Github project (HTTP $response)"
+      exit 1
+    fi
+  fi
+}
+
 main () {
-  local service="${1:?'A service name must be provided'}"
+  local name="${1:?'A service name must be provided'}"
 
-  echo "Creating service '$service'..."
-  echo 'Press enter to accept default value when prompted.'
+  log_info "Creating service '$name'..."
+  log_info 'Press enter to accept default value when prompted.'
 
-  ask_for serviceDir "Root directory" "${PWD}/$service/"
-
-  scaffold:init "$service" "$serviceDir"
+  scaffold:init "$name"
   scaffold:readme
   scaffold:directories
   scaffold:dotfiles
   scaffold:taskrunner
-  scaffold:git
+  scaffold:git:local
+  scaffold:git:github
 }
 
 main "$1"
