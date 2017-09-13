@@ -28,15 +28,31 @@ ask_for () {
   local var="$1"
   local prompt="$2"
   local default="$3"
+  local answer
 
-  echo -n "${prompt} (${default}) : "
-  read answer
+  if [[ "${default}" == "" ]]; then
+    until [[ "${answer}" != "" ]]; do
+      echo -n "${prompt} (${default}) : "
+      read answer
+    done
+  elif [[ "${default}" == "yes" ]] || [[ "${default}" == "no" ]]; then
+    until [[ "${answer}" == "yes" ]] || [[ "${answer}" == "no" ]]; do
+      echo -n "${prompt} (${default}) : "
+      read answer
+      if [[ "${answer}" == "" ]]; then
+        answer="${default}"
+      fi
+    done
+  else
+    echo -n "${prompt} (${default}) : "
+    read answer
+  fi
+
   if [[ -z $answer ]]; then
     set_var "${var}" "${default}"
   else
     set_var "${var}" "${answer}"
   fi
-
 }
 
 set_var () {
@@ -146,7 +162,7 @@ scaffold:git:github () {
 main () {
   local name="${1:?'A service name must be provided'}"
 
-  log_info "Creating service '$name'..."
+  log_info "Generating service '$name'..."
   log_info 'Press enter to accept default value when prompted.'
 
   scaffold:init "$name"
