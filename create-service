@@ -96,15 +96,17 @@ EOF
 }
 
 scaffold:directories () {
-  [[ -d ./src ]] || mkdir "./src"
-  [[ -d ./test ]] || mkdir "./test"
-  log_success ' - Created directories'
+  local created=false
+  if [[ ! -d ./src ]]; then mkdir "./src"; created=true; fi
+  if [[ ! -d ./test ]]; then mkdir "./test"; created=true; fi
+  [[ $created == true ]] && log_success ' - Created directories'
 }
 
 scaffold:dotfiles () {
-  [[ -f .gitignore ]] || touch .gitignore
-  [[ -f .editorconfig ]] || touch .editorconfig
-  log_success ' - Created dotfiles'
+  local created=false
+  if [[ ! -f ./.gitignore ]]; then touch .gitignore; created=true; fi
+  if [[ ! -f ./.editorconfig ]]; then touch .editorconfig; created=true; fi
+  [[ $created == true ]] && log_success ' - Created dotfiles'
 }
 
 scaffold:taskrunner () {
