@@ -1,6 +1,6 @@
 # create-service
 
-Scaffolding script for new services
+A generator for easy setup/scaffolding of new services written in bash
 
 Features:
 
