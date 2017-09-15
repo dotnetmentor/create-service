@@ -12,6 +12,7 @@ Features:
   - Github setup
   - Buildkite setup (pipeline.yml, pipeline, github webhook)
   - Docker setup (Dockerfile, docker-compose.yml)
+  - Reading values from config.json
 
 ## Usage
 

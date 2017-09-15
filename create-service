@@ -24,28 +24,38 @@ declare -r cs_color_yellow="\033[0;93m"
 # shellcheck disable=SC2034
 declare -r cs_color_reset="\033[0m"
 
+declare config
+
 ask_for () {
   local var="$1"
   local prompt="$2"
   local default="$3"
   local answer
 
-  if [[ "${default}" == "" ]]; then
-    until [[ "${answer}" != "" ]]; do
+  answer="$(echo "$config" | jq -r ".$var")"
+
+  if [[ "$answer" != "null" ]]; then
+    log_warn "Found value for '$var' in config.json ($answer)"
+  fi
+
+  if [[ "$answer" != "" ]]; then
+    if [[ "${default}" == "" ]]; then
+      until [[ "${answer}" != "" ]]; do
+        echo -n "${prompt} (${default}) : "
+        read answer
+      done
+    elif [[ "${default}" == "yes" ]] || [[ "${default}" == "no" ]]; then
+      until [[ "${answer}" == "yes" ]] || [[ "${answer}" == "no" ]]; do
+        echo -n "${prompt} (${default}) : "
+        read answer
+        if [[ "${answer}" == "" ]]; then
+          answer="${default}"
+        fi
+      done
+    else
       echo -n "${prompt} (${default}) : "
       read answer
-    done
-  elif [[ "${default}" == "yes" ]] || [[ "${default}" == "no" ]]; then
-    until [[ "${answer}" == "yes" ]] || [[ "${answer}" == "no" ]]; do
-      echo -n "${prompt} (${default}) : "
-      read answer
-      if [[ "${answer}" == "" ]]; then
-        answer="${default}"
-      fi
-    done
-  else
-    echo -n "${prompt} (${default}) : "
-    read answer
+    fi
   fi
 
   if [[ -z $answer ]]; then
@@ -340,17 +350,37 @@ EOF
 }
 
 # ---------------------------------------------------
+# config.json
+# ---------------------------------------------------
+
+load:config () {
+  local configFile="${PWD}/config.json"
+  # local key
+  # local value
+  if [[ -f $configFile ]]; then
+    log_info "Loading config ($configFile)"
+    config="$(cat $configFile)"
+    # echo "$config" | jq -r '.|keys[]' | while read key; do
+    #   value="$(echo "$config" | jq -r ".$key")"
+    #   set_var "${key}" "${value}"
+    # done
+  fi
+}
+
+# ---------------------------------------------------
 # main
 # ---------------------------------------------------
 
 main () {
   if [[ "${1}" == "" ]]; then
-    ask_for serviceName 'Enter a name for the service (lowercase, no spaces)'
+    ask_for service_name 'Enter a name for the service (lowercase, no spaces)'
   else
-    serviceName="${1}"
+    service_name="${1}"
   fi
 
-  log_info "Generating service '$serviceName'..."
+  load:config
+
+  log_info "Generating service '$service_name'..."
   log_info 'Press enter to accept default value when prompted.'
 
   ask_for useKoshu 'Setup Koshu taskrunner' 'yes'
@@ -364,7 +394,7 @@ main () {
   [[ "${useBuildkite:?}" == "yes" ]] && prompt:buildkite
   [[ "${useDocker:?}" == "yes" ]] && prompt:docker
 
-  scaffold:init "$serviceName"
+  scaffold:init "$service_name"
   scaffold:directories
   scaffold:dotfiles
   scaffold:readme
