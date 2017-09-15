@@ -68,7 +68,7 @@ log () {
 
 
 # ---------------------------------------------------
-# Generator functions. Modify as needded.
+# Generator functions
 # ---------------------------------------------------
 
 scaffold:init () {
@@ -90,8 +90,9 @@ scaffold:readme () {
   if [[ ! -f README.md ]]; then
     cat <<EOF > README.md
 # ${CS_SERVICE_NAME:?}
+
 EOF
-    log_success ' - Created a README.md'
+    log_success '- Created README.md'
   fi
 }
 
@@ -99,81 +100,236 @@ scaffold:directories () {
   local created=false
   if [[ ! -d ./src ]]; then mkdir "./src"; created=true; fi
   if [[ ! -d ./test ]]; then mkdir "./test"; created=true; fi
-  [[ $created == true ]] && log_success ' - Created directories'
+  [[ $created == true ]] && log_success '- Created directories (empty)'
 }
 
 scaffold:dotfiles () {
   local created=false
   if [[ ! -f ./.gitignore ]]; then touch .gitignore; created=true; fi
   if [[ ! -f ./.editorconfig ]]; then touch .editorconfig; created=true; fi
-  [[ $created == true ]] && log_success ' - Created dotfiles'
+  [[ $created == true ]] && log_success '- Created dotfiles (empty)'
 }
 
-scaffold:taskrunner () {
-  if [[ ! -f ./koshu.sh ]]; then
+# ---------------------------------------------------
+# Koshu
+# ---------------------------------------------------
+
+scaffold:koshu () {
+  if [[ "${useKoshu:?}" == "yes" ]] && [[ ! -f ./koshu.sh ]]; then
     curl -s https://raw.githubusercontent.com/kristofferahl/koshu-shell/master/src/koshu.sh > ./koshu.sh
     chmod +x ./koshu.sh
-    ./koshu.sh init > /dev/null
-    log_success ' - Added koshu and koshufile'
-  fi
+    cat <<EOF > koshufile
+#!/usr/bin/env bash
+
+build () {
+  echo 'Build task not implemented'
 }
 
-scaffold:git:local () {
+deploy () {
+  echo 'Deploy task not implemented'
+}
+EOF
+    log_success '- Added koshu and koshufile'
+  fi
+  export CS_TASKRUNNER_BUILD_COMMAND="./koshu.sh build"
+  export CS_TASKRUNNER_DEPLOY_COMMAND="./koshu.sh deploy"
+}
+
+# ---------------------------------------------------
+# git
+# ---------------------------------------------------
+
+scaffold:git () {
   if [[ ! -d .git ]]; then
     git init > /dev/null
     git add .
     git commit -am "Created service ${CS_SERVICE_NAME:?}" > /dev/null
-    log_success ' - Initialized local git repository'
-  fi
-}
+    log_success '- Initialized local git repository'
 
-scaffold:git:github () {
-  ask_for useGithub 'Setup Github project' 'yes'
-
-  if [[ "${useGithub:?}" != 'yes' ]]; then
-    log_info 'Skipping Github setup...'
-  else
-    ask_for githubOrganization 'Github organization'
-    ask_for githubToken 'Github API token'
-
-    local response
-    response=$(curl https://api.github.com/orgs/${githubOrganization:?}/repos \
-      -H "Authorization: token ${githubToken:?}" \
-      -o /dev/null \
-      --write-out "%{http_code}\n" \
-      --silent \
-      -d "{
-            \"name\": \"${CS_SERVICE_NAME:?}\",
-            \"private\": true
-          }")
-
-    if [[ "$response" == "201" ]]; then
-      log_success " - Github project created (https://github.com/${githubOrganization:?}/${CS_SERVICE_NAME:?}/)"
-
-      git remote add origin git@github.com:${githubOrganization:?}/${CS_SERVICE_NAME:?}.git
-      log_success " - Added remote 'origin' to git repository (git@github.com:${githubOrganization:?}/${CS_SERVICE_NAME:?}.git)"
-
-      export CS_GITHUB_ORG="${githubOrganization:?}"
-    else
-      log_error " - Failed to create Github project (HTTP $response)"
-      exit 1
+    if [[ "${CS_GITHUB_ORG}" != "" ]]; then
+      git remote add origin git@github.com:${CS_GITHUB_ORG:?}/${CS_SERVICE_NAME:?}.git
+      log_success "- Added remote 'origin' to git repository (git@github.com:${CS_GITHUB_ORG:?}/${CS_SERVICE_NAME:?}.git)"
     fi
   fi
 }
+
+# ---------------------------------------------------
+# github
+# ---------------------------------------------------
+
+prompt:github () {
+  ask_for githubOrganization 'Github organization'
+  ask_for githubToken 'Github API token'
+  export CS_GITHUB_ORG="${githubOrganization:?}"
+  export CS_GITHUB_TOKEN="${githubToken:?}"
+}
+
+scaffold:github () {
+  if [[ "${useGithub:?}" == "yes" ]]; then
+    local statuscode
+    statuscode=$(curl https://api.github.com/repos/${githubOrganization:?}/$name \
+      -H "Authorization: token ${githubToken:?}" \
+      -w '%{http_code}' \
+      -s -o /dev/null)
+
+    if [[ "$statuscode" == "200" ]]; then
+      log_warn '- Github repository already exists'
+    else
+      statuscode=$(curl https://api.github.com/orgs/${githubOrganization:?}/repos \
+        -H "Authorization: token ${githubToken:?}" \
+        -o /dev/null \
+        --write-out "%{http_code}\n" \
+        --silent \
+        -d "{
+              \"name\": \"${CS_SERVICE_NAME:?}\",
+              \"private\": true
+            }")
+
+      if [[ "$statuscode" == "201" ]]; then
+        log_success "- Github repository created (https://github.com/${githubOrganization:?}/${CS_SERVICE_NAME:?}/)"
+      else
+        log_error "- Failed to create Github repository (HTTP $statuscode)"
+        exit 1
+      fi
+    fi
+  fi
+}
+
+# ---------------------------------------------------
+# buildkite
+# ---------------------------------------------------
+
+prompt:buildkite () {
+    ask_for buildkiteOrganization 'Buildkite organization'
+    ask_for buildkiteToken 'Buildkite API token'
+}
+
+scaffold:buildkite () {
+  scaffold:buildkite:files
+  scaffold:buildkite:pipeline
+  scaffold:buildkite:webhook
+}
+
+scaffold:buildkite:files () {
+  if [[ "${useBuildkite:?}" == "yes" ]] && [[ ! -d .buildkite ]]; then
+      mkdir .buildkite
+      cat <<EOF > .buildkite/pipeline.yml
+steps:
+  - command: |-
+      ${CS_TASKRUNNER_BUILD_COMMAND:?}
+    label: Build
+
+  - wait
+  - command: |-
+      ${CS_TASKRUNNER_DEPLOY_COMMAND:?}
+    label: Deploy
+    branches: "master"
+EOF
+    log_success "- Created Buildkite files"
+  fi
+}
+
+scaffold:buildkite:pipeline () {
+  if [[ "${useBuildkite:?}" == "yes" ]]; then
+    local statuscode
+    local response
+
+    statuscode=$(curl "https://api.buildkite.com/v2/organizations/${buildkiteOrganization:?}/pipelines/${CS_SERVICE_NAME:?}" \
+      --silent \
+      -I \
+      -H "Authorization: Bearer ${buildkiteToken:?}" \
+      -w '%{http_code}' \
+      -o /dev/null)
+
+    if [[ "${statuscode}" == "404" ]]; then
+      response=$(curl "https://api.buildkite.com/v2/organizations/${buildkiteOrganization:?}/pipelines" \
+        --silent \
+        -H "Authorization: Bearer ${buildkiteToken:?}" \
+        -d "{
+            \"name\": \"${CS_SERVICE_NAME:?}\",
+            \"repository\": \"git@github.com:${CS_GITHUB_ORG:?}/${CS_SERVICE_NAME:?}.git\",
+            \"steps\": [
+              {
+                \"type\": \"script\",
+                \"name\": \"Setup :package:\",
+                \"command\": \"buildkite-agent pipeline upload\"
+              }
+            ]
+          }")
+      log_success "- Buildkite pipeline created"
+    else
+      log_warn "- Buildkite pipeline already exists"
+      response=$(curl --silent "https://api.buildkite.com/v2/organizations/${buildkiteOrganization:?}/pipelines/${CS_SERVICE_NAME:?}" -H "Authorization: Bearer ${buildkiteToken:?}")
+    fi
+
+    export CS_BUILDKITE_BADGE_URL="$(echo ${response:?} | jq -r '.badge_url')"
+    export CS_BUILDKITE_BUILD_URL="$(echo ${response} | jq -r '.web_url')"
+    export CS_BUILDKITE_WEBHOOK_URL="$(echo ${response} | jq -r '.provider.webhook_url')"
+
+    # TODO: Check to make sure readme exists
+    # TODO: Only add build status badge once
+    echo -e "[![Build status](${CS_BUILDKITE_BADGE_URL})](${CS_BUILDKITE_BUILD_URL})\n" >> ./README.md
+  fi
+}
+
+scaffold:buildkite:webhook () {
+  # TODO: Handle dependency on Github
+  if [[ "${useBuildkite:?}" == "yes" ]] && [[ "${useGithub:?}" == "yes" ]]; then
+    local response
+    response=$(curl https://api.github.com/repos/${githubOrganization:?}/$name/hooks \
+      -H "Authorization: token ${githubToken:?}" \
+      -s)
+
+    if [[ "$response" == *"${CS_BUILDKITE_WEBHOOK_URL}"* ]]; then
+      log_warn "- Buildkite webhook already added to Github repository"
+    else
+      curl https://api.github.com/repos/${CS_GITHUB_ORG:?}/${CS_SERVICE_NAME}/hooks \
+        --silent \
+        -X POST \
+        -H "Authorization: token ${CS_GITHUB_TOKEN:?}" \
+        -o /dev/null \
+        -d "{
+          \"name\": \"web\",
+          \"active\": true,
+          \"events\": [
+            \"push\",
+            \"pull_request\",
+            \"deployment\"
+          ],
+          \"config\": {
+            \"url\": \"${CS_BUILDKITE_WEBHOOK_URL:?}\",
+            \"content_type\": \"json\"
+          }"
+      log_success "- Created Buildkite webhook for Github repository"
+    fi
+  fi
+}
+
+# ---------------------------------------------------
+# main
+# ---------------------------------------------------
 
 main () {
   local name="${1:?'A service name must be provided'}"
 
   log_info "Generating service '$name'..."
   log_info 'Press enter to accept default value when prompted.'
+  ask_for useKoshu 'Setup Koshu taskrunner' 'yes'
+  ask_for useGithub 'Setup Github repository' 'yes'
+  ask_for useBuildkite 'Setup Buildkite' 'yes'
+
+  log_info 'Enter pre-requisites'
+  [[ "${useGithub}" == "yes" ]] && prompt:github
+  [[ "${useBuildkite}" == "yes" ]] && prompt:buildkite
 
   scaffold:init "$name"
-  scaffold:readme
   scaffold:directories
   scaffold:dotfiles
-  scaffold:taskrunner
-  scaffold:git:local
-  scaffold:git:github
+  scaffold:readme
+  scaffold:koshu
+  scaffold:github
+  scaffold:buildkite
+  scaffold:git
 }
 
 main "$1"

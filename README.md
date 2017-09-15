@@ -10,6 +10,7 @@ Features:
   - Koshu setup (taksrunner)
   - Git setup
   - Github setup
+  - Buildkite setup (pipeline.yml, pipeline, github webhook)
 
 ## Usage
 
@@ -17,7 +18,6 @@ Features:
 
 ## Roadmap
 
-  - Buildkite setup (pipeline.yml, webhook, status badge)
   - Docker setup (Dockerfile, docker-compose.yml)
   - Ask, show, execute
   - Run without cloning repository (curl and run)
