@@ -15,6 +15,12 @@ Features:
 
 ## Usage
 
+Simply open a terminal and run:
+
+    bash <(curl -s https://raw.githubusercontent.com/dotnetmentor/create-service/master/create-service)
+
+Or you could clone this repository and run:
+
     ./create-service <name>
 
 ## Roadmap
