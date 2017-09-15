@@ -26,4 +26,5 @@ Or you could clone this repository and run:
 ## Roadmap
 
   - Ask, show, execute
+  - Run in docker using mounted volumes (to handle pre-requisites like jq and envsubst)?
   - Additional language specific features (optional)?
