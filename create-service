@@ -344,9 +344,13 @@ EOF
 # ---------------------------------------------------
 
 main () {
-  local name="${1:?'A service name must be provided'}"
+  if [[ "${1}" == "" ]]; then
+    ask_for serviceName 'Enter a name for the service (lowercase, no spaces)'
+  else
+    serviceName="${1}"
+  fi
 
-  log_info "Generating service '$name'..."
+  log_info "Generating service '$serviceName'..."
   log_info 'Press enter to accept default value when prompted.'
 
   ask_for useKoshu 'Setup Koshu taskrunner' 'yes'
@@ -360,7 +364,7 @@ main () {
   [[ "${useBuildkite:?}" == "yes" ]] && prompt:buildkite
   [[ "${useDocker:?}" == "yes" ]] && prompt:docker
 
-  scaffold:init "$name"
+  scaffold:init "$serviceName"
   scaffold:directories
   scaffold:dotfiles
   scaffold:readme
