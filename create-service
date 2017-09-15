@@ -24,7 +24,7 @@ declare -r cs_color_yellow="\033[0;93m"
 # shellcheck disable=SC2034
 declare -r cs_color_reset="\033[0m"
 
-declare config
+declare config="{}"
 
 ask_for () {
   local var="$1"
@@ -34,11 +34,13 @@ ask_for () {
 
   answer="$(echo "$config" | jq -r ".$var")"
 
-  if [[ "$answer" != "null" ]]; then
+  if [[ "$answer" != "" ]] && [[ "$answer" != "null" ]]; then
     log_warn "Found value for '$var' in config.json ($answer)"
+  else
+    answer=''
   fi
 
-  if [[ "$answer" != "" ]]; then
+  if [[ "$answer" == "" ]]; then
     if [[ "${default}" == "" ]]; then
       until [[ "${answer}" != "" ]]; do
         echo -n "${prompt} (${default}) : "
@@ -58,10 +60,10 @@ ask_for () {
     fi
   fi
 
-  if [[ -z $answer ]]; then
-    set_var "${var}" "${default}"
-  else
+  if [ "$answer" != "" ]; then
     set_var "${var}" "${answer}"
+  else
+    set_var "${var}" "${default}"
   fi
 }
 
@@ -180,7 +182,7 @@ prompt:github () {
 scaffold:github () {
   if [[ "${useGithub:?}" == "yes" ]]; then
     local statuscode
-    statuscode=$(curl https://api.github.com/repos/${githubOrganization:?}/$name \
+    statuscode=$(curl https://api.github.com/repos/${githubOrganization:?}/$service_name \
       -H "Authorization: token ${githubToken:?}" \
       -w '%{http_code}' \
       -s -o /dev/null)
@@ -188,6 +190,7 @@ scaffold:github () {
     if [[ "$statuscode" == "200" ]]; then
       log_warn '- Github repository already exists'
     else
+      echo "Status code of check was $statuscode ${githubOrganization}"
       statuscode=$(curl https://api.github.com/orgs/${githubOrganization:?}/repos \
         -H "Authorization: token ${githubToken:?}" \
         -o /dev/null \
@@ -289,7 +292,7 @@ scaffold:buildkite:webhook () {
   # TODO: Handle dependency on Github
   if [[ "${useBuildkite:?}" == "yes" ]] && [[ "${useGithub:?}" == "yes" ]]; then
     local response
-    response=$(curl https://api.github.com/repos/${githubOrganization:?}/$name/hooks \
+    response=$(curl https://api.github.com/repos/${githubOrganization:?}/$service_name/hooks \
       -H "Authorization: token ${githubToken:?}" \
       -s)
 
@@ -355,15 +358,9 @@ EOF
 
 load:config () {
   local configFile="${PWD}/config.json"
-  # local key
-  # local value
   if [[ -f $configFile ]]; then
     log_info "Loading config ($configFile)"
     config="$(cat $configFile)"
-    # echo "$config" | jq -r '.|keys[]' | while read key; do
-    #   value="$(echo "$config" | jq -r ".$key")"
-    #   set_var "${key}" "${value}"
-    # done
   fi
 }
 
@@ -401,10 +398,10 @@ main () {
   scaffold:koshu
   scaffold:github
   scaffold:buildkite
-  scaffold:git
   scaffold:docker
+  scaffold:git
 
-  log_success "Setup and configured service $name"
+  log_info "Setup and configured service $service_name"
 }
 
 main "$1"
