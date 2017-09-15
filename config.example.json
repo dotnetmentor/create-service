@@ -1,4 +1,5 @@
 {
-  "githubOrganization": "organization name",
-  "buildkiteOrganization": "organization name"
+  "githubOrganization": "dotnetmentor",
+  "buildkiteOrganization": "dotnetmentor",
+  "dockerOrganization": "dotnetmentor"
 }
