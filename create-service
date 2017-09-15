@@ -117,18 +117,21 @@ scaffold:dotfiles () {
 scaffold:koshu () {
   if [[ "${useKoshu:?}" == "yes" ]] && [[ ! -f ./koshu.sh ]]; then
     curl -s https://raw.githubusercontent.com/kristofferahl/koshu-shell/master/src/koshu.sh > ./koshu.sh
-    chmod +x ./koshu.sh
     cat <<EOF > koshufile
 #!/usr/bin/env bash
 
 build () {
   echo 'Build task not implemented'
+  exit 1
 }
 
 deploy () {
   echo 'Deploy task not implemented'
+  exit 1
 }
 EOF
+    chmod +x ./koshu.sh
+    chmod +x koshufile
     log_success '- Added koshu and koshufile'
   fi
   export CS_TASKRUNNER_BUILD_COMMAND="./koshu.sh build"
@@ -306,6 +309,37 @@ scaffold:buildkite:webhook () {
 }
 
 # ---------------------------------------------------
+# docker
+# ---------------------------------------------------
+
+prompt:docker () {
+  ask_for dockerOrganization 'Docker organization'
+  export CS_DOCKER_ORGANIZATION="${dockerOrganization:?}"
+}
+
+scaffold:docker () {
+  if [[ "${useDocker:?}" == "yes" ]]; then
+    if [[ ! -f ./Dockerfile ]]; then
+      touch ./Dockerfile
+      log_success "- Created Dockerfile (empty)"
+    fi
+
+    [[ ! -d ./deployment ]] && mkdir "./deployment"
+
+    if [[ ! -f ./deployment/docker-compose.yml ]]; then
+      cat <<EOF > ./deployment/docker-compose.yml
+version: '3'
+services:
+  ${CS_SERVICE_NAME:?}:
+    image: ${CS_DOCKER_ORGANIZATION:?}/${CS_SERVICE_NAME:?}:latest
+
+EOF
+    log_success "- Created docker-compose.yml"
+    fi
+  fi
+}
+
+# ---------------------------------------------------
 # main
 # ---------------------------------------------------
 
@@ -314,13 +348,17 @@ main () {
 
   log_info "Generating service '$name'..."
   log_info 'Press enter to accept default value when prompted.'
+
   ask_for useKoshu 'Setup Koshu taskrunner' 'yes'
   ask_for useGithub 'Setup Github repository' 'yes'
   ask_for useBuildkite 'Setup Buildkite' 'yes'
+  ask_for useDocker 'Setup Docker' 'yes'
 
   log_info 'Enter pre-requisites'
-  [[ "${useGithub}" == "yes" ]] && prompt:github
-  [[ "${useBuildkite}" == "yes" ]] && prompt:buildkite
+
+  [[ "${useGithub:?}" == "yes" ]] && prompt:github
+  [[ "${useBuildkite:?}" == "yes" ]] && prompt:buildkite
+  [[ "${useDocker:?}" == "yes" ]] && prompt:docker
 
   scaffold:init "$name"
   scaffold:directories
@@ -330,6 +368,9 @@ main () {
   scaffold:github
   scaffold:buildkite
   scaffold:git
+  scaffold:docker
+
+  log_success "Setup and configured service $name"
 }
 
 main "$1"

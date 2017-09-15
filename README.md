@@ -11,6 +11,7 @@ Features:
   - Git setup
   - Github setup
   - Buildkite setup (pipeline.yml, pipeline, github webhook)
+  - Docker setup (Dockerfile, docker-compose.yml)
 
 ## Usage
 
@@ -18,7 +19,6 @@ Features:
 
 ## Roadmap
 
-  - Docker setup (Dockerfile, docker-compose.yml)
   - Ask, show, execute
   - Run without cloning repository (curl and run)
   - Additional language specific features (optional)?
