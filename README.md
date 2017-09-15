@@ -26,5 +26,4 @@ Or you could clone this repository and run:
 ## Roadmap
 
   - Ask, show, execute
-  - Run without cloning repository (curl and run)
   - Additional language specific features (optional)?
