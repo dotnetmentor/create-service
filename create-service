@@ -26,6 +26,10 @@ declare -r cs_color_reset="\033[0m"
 
 declare config="{}"
 
+pushd "$(dirname $0)" > /dev/null
+declare config_dir="${PWD}"
+popd > /dev/null
+
 ask_for () {
   local var="$1"
   local prompt="$2"
@@ -357,7 +361,7 @@ EOF
 # ---------------------------------------------------
 
 load:config () {
-  local configFile="${PWD}/config.json"
+  local configFile="${config_dir}/config.json"
   if [[ -f $configFile ]]; then
     log_info "Loading config ($configFile)"
     config="$(cat $configFile)"
