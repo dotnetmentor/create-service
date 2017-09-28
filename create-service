@@ -267,13 +267,17 @@ scaffold:buildkite:pipeline () {
         -d "{
             \"name\": \"${CS_SERVICE_NAME:?}\",
             \"repository\": \"git@github.com:${CS_GITHUB_ORG:?}/${CS_SERVICE_NAME:?}.git\",
+            \"default_branch\": \"master\",
+            \"branch_configuration\": \"master\",
             \"steps\": [
               {
                 \"type\": \"script\",
                 \"name\": \"Setup :package:\",
                 \"command\": \"buildkite-agent pipeline upload\"
               }
-            ]
+            ],
+            \"skip_queued_branch_builds\": true,
+            \"cancel_running_branch_builds\": true
           }")
       log_success "- Buildkite pipeline created"
     else
