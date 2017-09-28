@@ -344,10 +344,10 @@ scaffold:docker () {
       log_success "- Created Dockerfile (empty)"
     fi
 
-    [[ ! -d ./deployment ]] && mkdir "./deployment"
+    [[ ! -d ./.deployment ]] && mkdir "./.deployment"
 
-    if [[ ! -f ./deployment/docker-compose.yml ]]; then
-      cat <<EOF > ./deployment/docker-compose.yml
+    if [[ ! -f ./.deployment/docker-compose.yml ]]; then
+      cat <<EOF > ./.deployment/docker-compose.yml
 version: '3'
 services:
   ${CS_SERVICE_NAME:?}:
