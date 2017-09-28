@@ -194,7 +194,6 @@ scaffold:github () {
     if [[ "$statuscode" == "200" ]]; then
       log_warn '- Github repository already exists'
     else
-      echo "Status code of check was $statuscode ${githubOrganization}"
       statuscode=$(curl https://api.github.com/orgs/${githubOrganization:?}/repos \
         -H "Authorization: token ${githubToken:?}" \
         -o /dev/null \
