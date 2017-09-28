@@ -1,6 +1,6 @@
 # create-service
 
-A generator for easy setup/scaffolding of new services written in bash
+A generator for easy setup/scaffolding of new services, written in bash
 
 Features:
 
