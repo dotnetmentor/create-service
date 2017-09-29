@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+name='${CS_SERVICE_NAME}'
+version='0.1.0'
+
+info () {
+  echo "name       : ${name}"
+  echo "version    : ${version}"
+}
+
+build () {
+  depends_on info
+  echo 'Build task not implemented'
+  exit 1
+}
+
+deploy () {
+  depends_on info
+  echo 'Deploy task not implemented'
+  exit 1
+}
