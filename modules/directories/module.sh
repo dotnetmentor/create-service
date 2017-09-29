@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
 directories:init () {
-  ask_for 'source_dir' 'Source code directory' ./src
-  ask_for 'tests_dir' 'Tests directory' ./test
-  cs_export CS_DIRECTORIES_SOURCE "${source_dir:?}"
-  cs_export CS_DIRECTORIES_TESTS "${tests_dir:?}"
+  ask_for 'directoriesSourceDir' 'Source code directory' ./src
+  ask_for 'directoriesTestsDir' 'Tests directory' ./test
+  cs_export CS_DIRECTORIES_SOURCE "${directoriesSourceDir:?}"
+  cs_export CS_DIRECTORIES_TESTS "${directoriesTestsDir:?}"
 }
 
 directories:exec () {

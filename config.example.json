@@ -1,4 +1,8 @@
 {
+  "directories": "yes",
+  "directoriesSourceDir": "./src",
+  "directoriesTestsDir": "./test",
+
   "github": "yes",
   "githubOrganization": "dotnetmentor",
 
