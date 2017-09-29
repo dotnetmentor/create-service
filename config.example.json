@@ -1,5 +1,10 @@
 {
+  "github": "yes",
   "githubOrganization": "dotnetmentor",
+
+  "buildkite": "yes",
   "buildkiteOrganization": "dotnetmentor",
+
+  "docker": "yes",
   "dockerOrganization": "dotnetmentor"
 }

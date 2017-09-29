@@ -193,7 +193,7 @@ main () {
   local loaded_modules=()
 
   for module in "${cs_modules[@]}"; do
-    local use_variable_name="use_${module}"
+    local use_variable_name="${module}"
     ask_for "${use_variable_name}" "Use module '$module'" 'yes'
     if [[ "${!use_variable_name}" == "yes" ]]; then
       cs_export "CS_USE_$(echo ${module} | tr '[:lower:]' '[:upper:]')" 'true'
