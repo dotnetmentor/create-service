@@ -1,0 +1,10 @@
+steps:
+  - command: |-
+      ${CS_TASKRUNNER_BUILD_COMMAND}
+    label: Build
+
+  - wait
+  - command: |-
+      ${CS_TASKRUNNER_DEPLOY_COMMAND}
+    label: Deploy
+    branches: "master"
