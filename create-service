@@ -4,7 +4,7 @@
 # create-service customizations
 # ---------------------------------------------------
 
-declare -a -r cs_modules=('directories' 'editorconfig' 'readme' 'koshu' 'github' 'buildkite' 'docker' 'git')
+declare -a -r cs_modules=('directories' 'editorconfig' 'koshu' 'github' 'buildkite' 'docker' 'readme' 'git')
 declare -r cs_debug=false
 
 # ---------------------------------------------------
