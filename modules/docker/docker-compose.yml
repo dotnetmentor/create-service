@@ -1,0 +1,4 @@
+version: '3'
+services:
+  ${CS_SERVICE_NAME}:
+    image: ${CS_DOCKER_ORGANIZATION}/${CS_DOCKER_IMAGE_NAME}:${CS_DOCKER_IMAGE_TAG}
