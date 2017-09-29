@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 
 # ---------------------------------------------------
-# create-service internals
+# create-service customizations
 # ---------------------------------------------------
 
-alias log_success="log green [cs] "
-alias log_info="log blue [cs] "
-alias log_warn="log yellow [cs] "
-alias log_error="log red [cs] "
+declare -a -r cs_modules=('directories' 'editorconfig' 'readme' 'koshu' 'github' 'buildkite' 'docker' 'git')
+declare -r cs_debug=false
 
-shopt -s expand_aliases
+# ---------------------------------------------------
+# create-service internals
+# ---------------------------------------------------
 
 # shellcheck disable=SC2034
 declare -r cs_color_default=''
@@ -24,11 +24,22 @@ declare -r cs_color_yellow="\033[0;93m"
 # shellcheck disable=SC2034
 declare -r cs_color_reset="\033[0m"
 
-declare config="{}"
+declare cs_config="{}"
+declare -a cs_tracked_files=()
 
 pushd "$(dirname $0)" > /dev/null
-declare config_dir="${PWD}"
+export CS_CONFIG_DIR="${PWD}"
+export CS_MODULES_DIR="${PWD}/modules"
 popd > /dev/null
+
+log () {
+  local log_color="cs_color_${1}"
+  echo -e "${cs_color_reset}${!log_color}${*:2}${cs_color_reset}"
+}
+
+# ---------------------------------------------------
+# prompt functions
+# ---------------------------------------------------
 
 ask_for () {
   local var="$1"
@@ -36,10 +47,12 @@ ask_for () {
   local default="$3"
   local answer
 
-  answer="$(echo "$config" | jq -r ".$var")"
+  answer="$(echo "${cs_config:?}" | jq -r ".$var")"
 
   if [[ "$answer" != "" ]] && [[ "$answer" != "null" ]]; then
-    log_warn "Found value for '$var' in config.json ($answer)"
+    if [[ "${cs_debug:?}" == "true" ]]; then
+      log_warn "Found value for '$var' in config.json ($answer)"
+    fi
   else
     answer=''
   fi
@@ -77,14 +90,32 @@ set_var () {
   printf -v "${name}" '%s' "${value}"
 }
 
-log () {
-  local log_color="cs_color_${1}"
-  echo -e "${cs_color_reset}${!log_color}${*:2}${cs_color_reset}"
+# ---------------------------------------------------
+# module functions
+# ---------------------------------------------------
+
+alias log_success="log green [cs] "
+alias log_info="log blue [cs] "
+alias log_warn="log yellow [cs] "
+alias log_error="log red [cs] "
+
+shopt -s expand_aliases
+
+cs_copy () {
+  local sourceFile="${1:?'A source file must be given'}"
+  local destinationFile="${2:?'A destination file must be given'}"
+  cs_tracked_files+=(${destinationFile})
+  cp $sourceFile $destinationFile
 }
 
+cs_export () {
+  local env_var_name="${1:?'A name must be given'}"
+  local env_var_value="${2:-<computed>}"
+  export $(echo "${env_var_name}")="$(echo "${env_var_value}")"
+}
 
 # ---------------------------------------------------
-# Generator functions
+# scaffold:init
 # ---------------------------------------------------
 
 scaffold:init () {
@@ -102,272 +133,43 @@ scaffold:init () {
   export CS_SERVICE_DIR="${service_dir}"
 }
 
-scaffold:readme () {
-  if [[ ! -f README.md ]]; then
-    cat <<EOF > README.md
-# ${CS_SERVICE_NAME:?}
-
-EOF
-    log_success '- Created README.md'
-  fi
-}
-
-scaffold:directories () {
-  local created=false
-  if [[ ! -d ./src ]]; then mkdir "./src"; created=true; fi
-  if [[ ! -d ./test ]]; then mkdir "./test"; created=true; fi
-  [[ $created == true ]] && log_success '- Created directories (empty)'
-}
-
-scaffold:dotfiles () {
-  local created=false
-  if [[ ! -f ./.gitignore ]]; then touch .gitignore; created=true; fi
-  if [[ ! -f ./.editorconfig ]]; then touch .editorconfig; created=true; fi
-  [[ $created == true ]] && log_success '- Created dotfiles (empty)'
-}
-
 # ---------------------------------------------------
-# Koshu
+# apply:transformations
 # ---------------------------------------------------
 
-scaffold:koshu () {
-  if [[ "${useKoshu:?}" == "yes" ]] && [[ ! -f ./koshu.sh ]]; then
-    curl -s https://raw.githubusercontent.com/kristofferahl/koshu-shell/master/src/koshu.sh > ./koshu.sh
-    cat <<EOF > koshufile
-#!/usr/bin/env bash
-
-build () {
-  echo 'Build task not implemented'
-  exit 1
-}
-
-deploy () {
-  echo 'Deploy task not implemented'
-  exit 1
-}
-EOF
-    chmod +x ./koshu.sh
-    chmod +x koshufile
-    log_success '- Added koshu and koshufile'
-  fi
-  export CS_TASKRUNNER_BUILD_COMMAND="./koshu.sh build"
-  export CS_TASKRUNNER_DEPLOY_COMMAND="./koshu.sh deploy"
-}
-
-# ---------------------------------------------------
-# git
-# ---------------------------------------------------
-
-scaffold:git () {
-  if [[ ! -d .git ]]; then
-    git init > /dev/null
-    git add .
-    git commit -am "Created service ${CS_SERVICE_NAME:?}" > /dev/null
-    log_success '- Initialized local git repository'
-
-    if [[ "${CS_GITHUB_ORG}" != "" ]]; then
-      git remote add origin git@github.com:${CS_GITHUB_ORG:?}/${CS_SERVICE_NAME:?}.git
-      log_success "- Added remote 'origin' to git repository (git@github.com:${CS_GITHUB_ORG:?}/${CS_SERVICE_NAME:?}.git)"
-    fi
-  fi
-}
-
-# ---------------------------------------------------
-# github
-# ---------------------------------------------------
-
-prompt:github () {
-  ask_for githubOrganization 'Github organization'
-  ask_for githubToken 'Github API token'
-  export CS_GITHUB_ORG="${githubOrganization:?}"
-  export CS_GITHUB_TOKEN="${githubToken:?}"
-}
-
-scaffold:github () {
-  if [[ "${useGithub:?}" == "yes" ]]; then
-    local statuscode
-    statuscode=$(curl https://api.github.com/repos/${githubOrganization:?}/$service_name \
-      -H "Authorization: token ${githubToken:?}" \
-      -w '%{http_code}' \
-      -s -o /dev/null)
-
-    if [[ "$statuscode" == "200" ]]; then
-      log_warn '- Github repository already exists'
-    else
-      statuscode=$(curl https://api.github.com/orgs/${githubOrganization:?}/repos \
-        -H "Authorization: token ${githubToken:?}" \
-        -o /dev/null \
-        --write-out "%{http_code}\n" \
-        --silent \
-        -d "{
-              \"name\": \"${CS_SERVICE_NAME:?}\",
-              \"private\": true
-            }")
-
-      if [[ "$statuscode" == "201" ]]; then
-        log_success "- Github repository created (https://github.com/${githubOrganization:?}/${CS_SERVICE_NAME:?}/)"
-      else
-        log_error "- Failed to create Github repository (HTTP $statuscode)"
-        exit 1
+apply:transformations () {
+  for file in "${cs_tracked_files[@]}"; do
+    for env_var in $(env | grep CS_); do
+      if [[ "$env_var" == "CS_"* ]]; then
+        local env_var_name
+        env_var_name="$(echo ${env_var}| sed 's/=.*//g')"
+        local env_var_value="${!env_var_name}"
+        env_var_value="${env_var_value//\//\\/}"
+        sed -i -e "s/\${${env_var_name}}/${env_var_value}/g" ${file}
       fi
-    fi
-  fi
+    done
+  done
+  cs_tracked_files=()
 }
 
 # ---------------------------------------------------
-# buildkite
+# output:env
 # ---------------------------------------------------
 
-prompt:buildkite () {
-    ask_for buildkiteOrganization 'Buildkite organization'
-    ask_for buildkiteToken 'Buildkite API token'
-}
-
-scaffold:buildkite () {
-  scaffold:buildkite:files
-  scaffold:buildkite:pipeline
-  scaffold:buildkite:webhook
-}
-
-scaffold:buildkite:files () {
-  if [[ "${useBuildkite:?}" == "yes" ]] && [[ ! -d .buildkite ]]; then
-      mkdir .buildkite
-      cat <<EOF > .buildkite/pipeline.yml
-steps:
-  - command: |-
-      ${CS_TASKRUNNER_BUILD_COMMAND:?}
-    label: Build
-
-  - wait
-  - command: |-
-      ${CS_TASKRUNNER_DEPLOY_COMMAND:?}
-    label: Deploy
-    branches: "master"
-EOF
-    log_success "- Created Buildkite files"
-  fi
-}
-
-scaffold:buildkite:pipeline () {
-  if [[ "${useBuildkite:?}" == "yes" ]]; then
-    local statuscode
-    local response
-
-    statuscode=$(curl "https://api.buildkite.com/v2/organizations/${buildkiteOrganization:?}/pipelines/${CS_SERVICE_NAME:?}" \
-      --silent \
-      -I \
-      -H "Authorization: Bearer ${buildkiteToken:?}" \
-      -w '%{http_code}' \
-      -o /dev/null)
-
-    if [[ "${statuscode}" == "404" ]]; then
-      response=$(curl "https://api.buildkite.com/v2/organizations/${buildkiteOrganization:?}/pipelines" \
-        --silent \
-        -H "Authorization: Bearer ${buildkiteToken:?}" \
-        -d "{
-            \"name\": \"${CS_SERVICE_NAME:?}\",
-            \"repository\": \"git@github.com:${CS_GITHUB_ORG:?}/${CS_SERVICE_NAME:?}.git\",
-            \"default_branch\": \"master\",
-            \"branch_configuration\": \"master\",
-            \"steps\": [
-              {
-                \"type\": \"script\",
-                \"name\": \"Setup :package:\",
-                \"command\": \"buildkite-agent pipeline upload\"
-              }
-            ],
-            \"skip_queued_branch_builds\": true,
-            \"cancel_running_branch_builds\": true
-          }")
-      log_success "- Buildkite pipeline created"
-    else
-      log_warn "- Buildkite pipeline already exists"
-      response=$(curl --silent "https://api.buildkite.com/v2/organizations/${buildkiteOrganization:?}/pipelines/${CS_SERVICE_NAME:?}" -H "Authorization: Bearer ${buildkiteToken:?}")
-    fi
-
-    export CS_BUILDKITE_BADGE_URL="$(echo ${response:?} | jq -r '.badge_url')"
-    export CS_BUILDKITE_BUILD_URL="$(echo ${response} | jq -r '.web_url')"
-    export CS_BUILDKITE_WEBHOOK_URL="$(echo ${response} | jq -r '.provider.webhook_url')"
-
-    # TODO: Check to make sure readme exists
-    # TODO: Only add build status badge once
-    echo -e "[![Build status](${CS_BUILDKITE_BADGE_URL})](${CS_BUILDKITE_BUILD_URL})\n" >> ./README.md
-  fi
-}
-
-scaffold:buildkite:webhook () {
-  # TODO: Handle dependency on Github
-  if [[ "${useBuildkite:?}" == "yes" ]] && [[ "${useGithub:?}" == "yes" ]]; then
-    local response
-    response=$(curl https://api.github.com/repos/${githubOrganization:?}/$service_name/hooks \
-      -H "Authorization: token ${githubToken:?}" \
-      -s)
-
-    if [[ "$response" == *"${CS_BUILDKITE_WEBHOOK_URL}"* ]]; then
-      log_warn "- Buildkite webhook already added to Github repository"
-    else
-      curl https://api.github.com/repos/${CS_GITHUB_ORG:?}/${CS_SERVICE_NAME}/hooks \
-        --silent \
-        -X POST \
-        -H "Authorization: token ${CS_GITHUB_TOKEN:?}" \
-        -o /dev/null \
-        -d "{
-          \"name\": \"web\",
-          \"active\": true,
-          \"events\": [
-            \"push\",
-            \"pull_request\",
-            \"deployment\"
-          ],
-          \"config\": {
-            \"url\": \"${CS_BUILDKITE_WEBHOOK_URL:?}\",
-            \"content_type\": \"json\"
-          }"
-      log_success "- Created Buildkite webhook for Github repository"
-    fi
-  fi
+output:env () {
+  echo
+  env | grep CS_ | sort
 }
 
 # ---------------------------------------------------
-# docker
-# ---------------------------------------------------
-
-prompt:docker () {
-  ask_for dockerOrganization 'Docker organization'
-  export CS_DOCKER_ORGANIZATION="${dockerOrganization:?}"
-}
-
-scaffold:docker () {
-  if [[ "${useDocker:?}" == "yes" ]]; then
-    if [[ ! -f ./Dockerfile ]]; then
-      touch ./Dockerfile
-      log_success "- Created Dockerfile (empty)"
-    fi
-
-    [[ ! -d ./.deployment ]] && mkdir "./.deployment"
-
-    if [[ ! -f ./.deployment/docker-compose.yml ]]; then
-      cat <<EOF > ./.deployment/docker-compose.yml
-version: '3'
-services:
-  ${CS_SERVICE_NAME:?}:
-    image: ${CS_DOCKER_ORGANIZATION:?}/${CS_SERVICE_NAME:?}:latest
-
-EOF
-    log_success "- Created docker-compose.yml"
-    fi
-  fi
-}
-
-# ---------------------------------------------------
-# config.json
+# load:config
 # ---------------------------------------------------
 
 load:config () {
-  local configFile="${config_dir}/config.json"
+  local configFile="${CS_CONFIG_DIR}/config.json"
   if [[ -f $configFile ]]; then
     log_info "Loading config ($configFile)"
-    config="$(cat $configFile)"
+    cs_config="$(cat $configFile)"
   fi
 }
 
@@ -386,27 +188,39 @@ main () {
 
   log_info "Generating service '$service_name'..."
   log_info 'Press enter to accept default value when prompted.'
+  echo
 
-  ask_for useKoshu 'Setup Koshu taskrunner' 'yes'
-  ask_for useGithub 'Setup Github repository' 'yes'
-  ask_for useBuildkite 'Setup Buildkite' 'yes'
-  ask_for useDocker 'Setup Docker' 'yes'
+  local loaded_modules=()
 
-  log_info 'Enter pre-requisites'
-
-  [[ "${useGithub:?}" == "yes" ]] && prompt:github
-  [[ "${useBuildkite:?}" == "yes" ]] && prompt:buildkite
-  [[ "${useDocker:?}" == "yes" ]] && prompt:docker
+  for module in "${cs_modules[@]}"; do
+    local use_variable_name="use_${module}"
+    ask_for "${use_variable_name}" "Use module '$module'" 'yes'
+    if [[ "${!use_variable_name}" == "yes" ]]; then
+      cs_export "CS_USE_$(echo ${module} | tr '[:lower:]' '[:upper:]')" 'true'
+      # shellcheck source=src/lib.sh
+      source "${CS_MODULES_DIR}/${module}/module.sh"
+      loaded_modules+=(${module})
+    fi
+  done
 
   scaffold:init "$service_name"
-  scaffold:directories
-  scaffold:dotfiles
-  scaffold:readme
-  scaffold:koshu
-  scaffold:github
-  scaffold:buildkite
-  scaffold:docker
-  scaffold:git
+
+  echo
+  log_info 'Checking pre-requisites...'
+  for module in "${loaded_modules[@]}"; do
+    log_info "# ${module}"
+    "${module}:init"
+  done
+
+  echo
+  log_info 'Applying modules...'
+  for module in "${loaded_modules[@]}"; do
+    log_info "# ${module}"
+    "${module}:exec"
+    apply:transformations
+  done
+
+  output:env
 
   log_info "Setup and configured service $service_name"
 }
