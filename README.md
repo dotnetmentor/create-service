@@ -15,6 +15,14 @@ Features in short:
   - Buildkite setup
   - Docker setup
 
+## Pre-requisites
+
+  - jq (https://stedolan.github.io/jq/)
+  - sed
+  - grep
+  - curl (module)
+  - git (module)
+
 ## Usage
 
 Clone this repository and run:
