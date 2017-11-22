@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+echo -n 'Enter a name for the service (lowercase, no spaces): '
+read service
+
+path="$(pwd)/${service:?A service name must be provided}"
+
+echo
+echo "NOTE: Output will be written to '$path'."
+echo "      Accept the default 'Root directory' value when prompted!"
+echo
+
+docker run --rm -it \
+    -v "${path}:/create-service/${service}" \
+    create-service:latest \
+    "${service}"
