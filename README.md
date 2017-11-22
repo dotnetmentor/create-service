@@ -15,7 +15,9 @@ Features in short:
   - Buildkite setup
   - Docker setup
 
-## Pre-requisites
+## Usage - local
+
+### Pre-requisites
 
   - jq (https://stedolan.github.io/jq/)
   - sed
@@ -23,13 +25,15 @@ Features in short:
   - curl (module)
   - git (module)
 
-## Usage
-
 Clone this repository and run:
 
     ./create-service <name>
 
 You may specify a set of defaults to use when running `create-service` by creating a `config.json` in the `create-service` repository root. This file is by default ignored (.gitignore) and not checked as it may contain secrets.
+
+## Usage - docker (experimental)
+
+    bash <(curl -s https://raw.githubusercontent.com/dotnetmentor/create-service/master/create-service-docker)
 
 ## Modules
 
